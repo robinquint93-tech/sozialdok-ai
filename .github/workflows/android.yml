@@ -32,7 +32,7 @@ jobs:
 
       - name: Mobile Abhängigkeiten installieren
         working-directory: buildsrc/mobile
-        run: npm install
+        run: npm install && npm install -D typescript
 
       - name: Android Projekt erzeugen
         working-directory: buildsrc/mobile

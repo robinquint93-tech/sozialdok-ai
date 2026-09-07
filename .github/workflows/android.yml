@@ -1,0 +1,53 @@
+name: SozialDok AI Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+
+      - name: Java installieren
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Node.js installieren
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Android SDK vorbereiten
+        uses: android-actions/setup-android@v3
+
+      - name: Projekt entpacken
+        run: |
+          mkdir buildsrc
+          unzip -q SozialDok_AI_8_0_Mobile_Desktop_Release.zip -d buildsrc
+
+      - name: Mobile Abhängigkeiten installieren
+        working-directory: buildsrc/mobile
+        run: npm install
+
+      - name: Android Projekt erzeugen
+        working-directory: buildsrc/mobile
+        run: npx cap add android
+
+      - name: App synchronisieren
+        working-directory: buildsrc/mobile
+        run: npx cap sync android
+
+      - name: APK bauen
+        working-directory: buildsrc/mobile/android
+        run: ./gradlew assembleDebug
+
+      - name: APK bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: SozialDok-AI-Android
+          path: buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk

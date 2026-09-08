@@ -24,14 +24,11 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: buildsrc/mobile/package-lock.json
 
       - name: Android SDK vorbereiten
         uses: android-actions/setup-android@v3
-
-      - name: Gradle installieren
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
 
       - name: Projekt entpacken
         run: |
@@ -42,53 +39,29 @@ jobs:
         working-directory: buildsrc/mobile
         run: npm install
 
+      - name: Vorhandenes Android-Projekt entfernen
+        working-directory: buildsrc/mobile
+        run: |
+          rm -rf android
+          echo "Altes Android-Projekt entfernt."
+
+      - name: Android-Projekt neu erzeugen
+        working-directory: buildsrc/mobile
+        run: |
+          npx cap add android
+
       - name: Capacitor synchronisieren
         working-directory: buildsrc/mobile
-        run: npx cap sync android
-
-      - name: Android Projekt vorbereiten
-        working-directory: buildsrc/mobile/android
-        shell: bash
         run: |
-          echo "Android-Projekt:"
-          pwd
-          echo "Dateien:"
-          find . -maxdepth 2 -type f | sort
-
-          if [ ! -f settings.gradle ] && [ ! -f settings.gradle.kts ]; then
-            echo "settings.gradle fehlt - wird erstellt."
-            cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          rootProject.name = "SozialDok"
-          include(":app")
-          EOF
-          fi
-
-          echo "settings.gradle:"
-          cat settings.gradle
+          npx cap sync android
 
       - name: Android APK bauen
         working-directory: buildsrc/mobile/android
         run: |
-          gradle assembleDebug --no-daemon
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: APK finden
-        shell: bash
         run: |
           APK=$(find buildsrc/mobile/android -type f -name "app-debug.apk" -print -quit)
 

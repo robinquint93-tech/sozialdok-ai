@@ -24,11 +24,14 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: buildsrc/mobile/package-lock.json
 
       - name: Android SDK vorbereiten
         uses: android-actions/setup-android@v3
+
+      - name: Gradle installieren
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
       - name: Projekt entpacken
         run: |

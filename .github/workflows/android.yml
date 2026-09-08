@@ -17,7 +17,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Node.js installieren
+      - name: Node installieren
         uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -30,23 +30,9 @@ jobs:
           mkdir -p buildsrc
           unzip -q SozialDok_AI_8_0_Android_BuildFix.zip -d buildsrc
 
-      - name: Capacitor-Konfiguration absichern
+      - name: Abhängigkeiten installieren
         working-directory: buildsrc/mobile
-        run: |
-          rm -f capacitor.config.ts
-          cat > capacitor.config.json <<'EOF'
-          {
-            "appId": "de.sozialdok.ai",
-            "appName": "SozialDok AI",
-            "webDir": "../app"
-          }
-          EOF
-
-      - name: Mobile Abhängigkeiten installieren
-        working-directory: buildsrc/mobile
-        run: |
-          npm install
-          npm install -D typescript@5.9.2
+        run: npm install
 
       - name: Android Projekt erzeugen
         working-directory: buildsrc/mobile
@@ -65,4 +51,3 @@ jobs:
         with:
           name: SozialDok-AI-Android
           path: buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk
-Danach

@@ -2,6 +2,9 @@ name: SozialDok AI Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -34,20 +37,21 @@ jobs:
         working-directory: buildsrc/mobile
         run: npm install
 
-      - name: Android Projekt erzeugen
-        working-directory: buildsrc/mobile
-        run: npx cap add android
-
       - name: App synchronisieren
         working-directory: buildsrc/mobile
         run: npx cap sync android
 
+      - name: Gradle ausführbar machen
+        working-directory: buildsrc/mobile/android
+        run: chmod +x ./gradlew
+
       - name: APK bauen
         working-directory: buildsrc/mobile/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
           name: SozialDok-AI-Android
           path: buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

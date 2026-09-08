@@ -46,13 +46,55 @@ jobs:
         working-directory: buildsrc/mobile
         run: npx cap sync android
 
-      - name: Android APK bauen
-        working-directory: buildsrc/mobile/android
-        run: gradle assembleDebug --no-daemon
+      - name: Android Gradle Projekt finden und APK bauen
+        shell: bash
+        run: |
+          echo "Suche Android-Gradle-Projekt..."
+
+          SETTINGS_FILE=$(find buildsrc -type f \( \
+            -name "settings.gradle" -o \
+            -name "settings.gradle.kts" \
+          \) -print -quit)
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "FEHLER: Keine settings.gradle gefunden."
+            echo "Gefundene Dateien:"
+            find buildsrc -maxdepth 6 -type f | head -200
+            exit 1
+          fi
+
+          ANDROID_DIR=$(dirname "$SETTINGS_FILE")
+
+          echo "Android-Projekt gefunden:"
+          echo "$ANDROID_DIR"
+
+          cd "$ANDROID_DIR"
+
+          echo "Inhalt des Build-Ordners:"
+          ls -la
+
+          gradle assembleDebug --no-daemon
+
+      - name: APK finden
+        shell: bash
+        run: |
+          APK=$(find buildsrc -type f -name "app-debug.apk" -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "FEHLER: Keine APK gefunden."
+            find buildsrc -type f | grep -E '\.apk$' || true
+            exit 1
+          fi
+
+          echo "APK gefunden:"
+          echo "$APK"
+
+          mkdir -p artifact
+          cp "$APK" artifact/SozialDok-AI.apk
 
       - name: APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
           name: SozialDok-AI-Android
-          path: buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          path: artifact/SozialDok-AI.apk
           if-no-files-found: error

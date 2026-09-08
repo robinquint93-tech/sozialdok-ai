@@ -1,4 +1,4 @@
-name: SozialDok AI Android Release APK
+name: SozialDok AI Android Debug APK
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-release:
+  build-debug:
     runs-on: ubuntu-latest
 
     steps:
@@ -48,111 +48,30 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Release-Signierung konfigurieren
-        working-directory: buildsrc/mobile/android/app
-        shell: python
-        run: |
-          from pathlib import Path
-
-          path = Path("build.gradle")
-          text = path.read_text()
-
-          signing = """
-          signingConfigs {
-              release {
-                  storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
-                  storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                  keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                  keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-              }
-          }
-          """
-
-          if "signingConfigs {" not in text:
-              text = text.replace(
-                  "    buildTypes {",
-                  signing + "\n    buildTypes {",
-                  1
-              )
-
-          if "signingConfig signingConfigs.release" not in text:
-              text = text.replace(
-                  "    buildTypes {\n        release {",
-                  "    buildTypes {\n        release {\n            signingConfig signingConfigs.release",
-                  1
-              )
-
-          path.write_text(text)
-
-      - name: Release-Keystore bereitstellen
-        shell: bash
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -e
-
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "FEHLER: ANDROID_KEYSTORE_BASE64 fehlt."
-            exit 1
-          fi
-
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "FEHLER: ANDROID_KEYSTORE_PASSWORD fehlt."
-            exit 1
-          fi
-
-          if [ -z "$KEY_ALIAS" ]; then
-            echo "FEHLER: ANDROID_KEY_ALIAS fehlt."
-            exit 1
-          fi
-
-          if [ -z "$KEY_PASSWORD" ]; then
-            echo "FEHLER: ANDROID_KEY_PASSWORD fehlt."
-            exit 1
-          fi
-
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/android-release.keystore"
-
-          chmod 600 "$GITHUB_WORKSPACE/android-release.keystore"
-
-          echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/android-release.keystore" >> "$GITHUB_ENV"
-          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-
-      - name: Signierte Release-APK bauen
+      - name: Debug-APK bauen
         working-directory: buildsrc/mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew clean assembleRelease --no-daemon
+          ./gradlew clean assembleDebug --no-daemon
 
       - name: APK prüfen
         run: |
-          APK="buildsrc/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          APK="buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk"
 
           if [ ! -f "$APK" ]; then
-            echo "FEHLER: Release-APK nicht gefunden."
+            echo "FEHLER: Debug-APK nicht gefunden."
             exit 1
           fi
 
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
-
           "$APKSIGNER" verify --verbose "$APK"
 
           mkdir -p artifact
-          cp "$APK" artifact/SozialDok-AI-release.apk
+          cp "$APK" artifact/SozialDok-AI-debug.apk
 
-      - name: Release-APK bereitstellen
+      - name: Debug-APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: SozialDok-AI-Android-Release
-          path: artifact/SozialDok-AI-release.apk
+          name: SozialDok-AI-Android-Debug
+          path: artifact/SozialDok-AI-debug.apk
           if-no-files-found: error
-
-      - name: Keystore löschen
-        if: always()
-        run: |
-          rm -f "$GITHUB_WORKSPACE/android-release.keystore"

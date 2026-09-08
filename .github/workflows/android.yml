@@ -12,27 +12,41 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Java installieren
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Node.js installieren
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Android SDK vorbereiten
         uses: android-actions/setup-android@v3
 
       - name: Projekt entpacken
         run: |
-          mkdir buildsrc
-          unzip -q SozialDok_AI_8_0_Mobile_Desktop_Release.zip -d buildsrc
+          mkdir -p buildsrc
+          unzip -q SozialDok_AI_8_0_Android_BuildFix.zip -d buildsrc
+
+      - name: Capacitor-Konfiguration absichern
+        working-directory: buildsrc/mobile
+        run: |
+          rm -f capacitor.config.ts
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "de.sozialdok.ai",
+            "appName": "SozialDok AI",
+            "webDir": "../app"
+          }
+          EOF
 
       - name: Mobile Abhängigkeiten installieren
         working-directory: buildsrc/mobile
-        run: npm install && npm install -D typescript
+        run: |
+          npm install
+          npm install -D typescript@5.9.2
 
       - name: Android Projekt erzeugen
         working-directory: buildsrc/mobile
@@ -51,3 +65,4 @@ jobs:
         with:
           name: SozialDok-AI-Android
           path: buildsrc/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+Danach

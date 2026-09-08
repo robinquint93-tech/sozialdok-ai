@@ -46,49 +46,59 @@ jobs:
         working-directory: buildsrc/mobile
         run: npx cap sync android
 
-      - name: Android Gradle Projekt finden und APK bauen
+      - name: Android Projekt vorbereiten
+        working-directory: buildsrc/mobile/android
         shell: bash
         run: |
-          echo "Suche Android-Gradle-Projekt..."
+          echo "Android-Projekt:"
+          pwd
+          echo "Dateien:"
+          find . -maxdepth 2 -type f | sort
 
-          SETTINGS_FILE=$(find buildsrc -type f \( \
-            -name "settings.gradle" -o \
-            -name "settings.gradle.kts" \
-          \) -print -quit)
+          if [ ! -f settings.gradle ] && [ ! -f settings.gradle.kts ]; then
+            echo "settings.gradle fehlt - wird erstellt."
+            cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
 
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "FEHLER: Keine settings.gradle gefunden."
-            echo "Gefundene Dateien:"
-            find buildsrc -maxdepth 6 -type f | head -200
-            exit 1
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "SozialDok"
+          include(":app")
+          EOF
           fi
 
-          ANDROID_DIR=$(dirname "$SETTINGS_FILE")
+          echo "settings.gradle:"
+          cat settings.gradle
 
-          echo "Android-Projekt gefunden:"
-          echo "$ANDROID_DIR"
-
-          cd "$ANDROID_DIR"
-
-          echo "Inhalt des Build-Ordners:"
-          ls -la
-
+      - name: Android APK bauen
+        working-directory: buildsrc/mobile/android
+        run: |
           gradle assembleDebug --no-daemon
 
       - name: APK finden
         shell: bash
         run: |
-          APK=$(find buildsrc -type f -name "app-debug.apk" -print -quit)
+          APK=$(find buildsrc/mobile/android -type f -name "app-debug.apk" -print -quit)
 
           if [ -z "$APK" ]; then
             echo "FEHLER: Keine APK gefunden."
-            find buildsrc -type f | grep -E '\.apk$' || true
+            find buildsrc/mobile/android -type f -name "*.apk" -print
             exit 1
           fi
 
-          echo "APK gefunden:"
-          echo "$APK"
-
+          echo "APK gefunden: $APK"
           mkdir -p artifact
           cp "$APK" artifact/SozialDok-AI.apk
 

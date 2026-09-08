@@ -1,4 +1,5 @@
-name: SozialDok AI Android APK
+
+name: SozialDok AI Android Release APK
 
 on:
   workflow_dispatch:
@@ -6,8 +7,11 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +24,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Node installieren
+      - name: Node.js installieren
         uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -28,13 +32,9 @@ jobs:
       - name: Android SDK vorbereiten
         uses: android-actions/setup-android@v3
 
-      - name: Gradle installieren
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-
       - name: Projekt entpacken
         run: |
+          rm -rf buildsrc
           mkdir -p buildsrc
           unzip -q SozialDok_AI_8_0_Android_BuildFix.zip -d buildsrc
 
@@ -42,45 +42,118 @@ jobs:
         working-directory: buildsrc/mobile
         run: npm install
 
-      - name: Vorhandenes Android-Projekt entfernen
+      - name: Android-Projekt erzeugen
         working-directory: buildsrc/mobile
         run: |
           rm -rf android
-          echo "Altes Android-Projekt entfernt."
-
-      - name: Android-Projekt neu erzeugen
-        working-directory: buildsrc/mobile
-        run: |
           npx cap add android
-
-      - name: Capacitor synchronisieren
-        working-directory: buildsrc/mobile
-        run: |
           npx cap sync android
 
-      - name: Android APK bauen
-        working-directory: buildsrc/mobile/android
+      - name: Release-Signierung konfigurieren
+        working-directory: buildsrc/mobile/android/app
+        shell: python
         run: |
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          from pathlib import Path
 
-      - name: APK finden
+          path = Path("build.gradle")
+          text = path.read_text()
+
+          signing = """
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+          """
+
+          if "signingConfigs {" not in text:
+              text = text.replace(
+                  "    buildTypes {",
+                  signing + "\n    buildTypes {",
+                  1
+              )
+
+          if "signingConfig signingConfigs.release" not in text:
+              text = text.replace(
+                  "        release {",
+                  "        release {\n            signingConfig signingConfigs.release",
+                  1
+              )
+
+          path.write_text(text)
+
+      - name: Release-Keystore bereitstellen
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          APK=$(find buildsrc/mobile/android -type f -name "app-debug.apk" -print -quit)
+          set -e
 
-          if [ -z "$APK" ]; then
-            echo "FEHLER: Keine APK gefunden."
-            find buildsrc/mobile/android -type f -name "*.apk" -print
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "FEHLER: ANDROID_KEYSTORE_BASE64 fehlt."
             exit 1
           fi
 
-          echo "APK gefunden: $APK"
-          mkdir -p artifact
-          cp "$APK" artifact/SozialDok-AI.apk
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "FEHLER: ANDROID_KEYSTORE_PASSWORD fehlt."
+            exit 1
+          fi
 
-      - name: APK bereitstellen
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "FEHLER: ANDROID_KEY_ALIAS fehlt."
+            exit 1
+          fi
+
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "FEHLER: ANDROID_KEY_PASSWORD fehlt."
+            exit 1
+          fi
+
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$GITHUB_WORKSPACE/android-release.keystore"
+
+          chmod 600 "$GITHUB_WORKSPACE/android-release.keystore"
+
+          echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/android-release.keystore" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Signierte Release-APK bauen
+        working-directory: buildsrc/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean assembleRelease --no-daemon
+
+      - name: APK prüfen
+        run: |
+          APK="buildsrc/mobile/android/app/build/outputs/apk/release/app-release.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "FEHLER: Release-APK nicht gefunden."
+            exit 1
+          fi
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+
+          "$APKSIGNER" verify --verbose "$APK"
+
+          mkdir -p artifact
+          cp "$APK" artifact/SozialDok-AI-release.apk
+
+      - name: Release-APK bereitstellen
         uses: actions/upload-artifact@v4
         with:
-          name: SozialDok-AI-Android
-          path: artifact/SozialDok-AI.apk
+          name: SozialDok-AI-Android-Release
+          path: artifact/SozialDok-AI-release.apk
           if-no-files-found: error
+
+      - name: Keystore löschen
+        if: always()
+        run: |
+          rm -f "$GITHUB_WORKSPACE/android-release.keystore"

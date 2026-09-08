@@ -1,4 +1,3 @@
-
 name: SozialDok AI Android Release APK
 
 on:
@@ -59,14 +58,14 @@ jobs:
           text = path.read_text()
 
           signing = """
-              signingConfigs {
-                  release {
-                      storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
-                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-                  }
+          signingConfigs {
+              release {
+                  storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+                  storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                  keyPassword System.getenv("ANDROID_KEY_PASSWORD")
               }
+          }
           """
 
           if "signingConfigs {" not in text:
@@ -78,8 +77,8 @@ jobs:
 
           if "signingConfig signingConfigs.release" not in text:
               text = text.replace(
-                  "        release {",
-                  "        release {\n            signingConfig signingConfigs.release",
+                  "    buildTypes {\n        release {",
+                  "    buildTypes {\n        release {\n            signingConfig signingConfigs.release",
                   1
               )
 
